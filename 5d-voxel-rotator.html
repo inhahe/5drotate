@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>5D Pixel Rotator</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #0d1117; color: #c9d1d9;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  display: flex; height: 100vh; overflow: hidden;
+}
+
+/* ── Sidebar ───────────────────────────────────────────── */
+.sidebar {
+  width: 340px; min-width: 340px;
+  padding: 16px 18px; overflow-y: auto;
+  border-right: 1px solid #21262d;
+  background: #0d1117;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.sidebar::-webkit-scrollbar { width: 6px; }
+.sidebar::-webkit-scrollbar-track { background: transparent; }
+.sidebar::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+
+.sidebar h1 {
+  font-size: 20px; font-weight: 700; letter-spacing: -0.5px;
+  background: linear-gradient(135deg, #58a6ff, #f778ba, #ff7b72);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.sidebar h1 span { font-size: 12px; font-weight: 400; opacity: 0.6;
+  -webkit-text-fill-color: #8b949e; display: block; margin-top: 2px; }
+
+/* ── Sections ──────────────────────────────────────────── */
+.section { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 12px 14px; }
+.section-title {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.8px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+}
+.section-title .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* ── Drop zone ─────────────────────────────────────────── */
+.drop-zone {
+  border: 2px dashed #30363d; border-radius: 8px;
+  padding: 20px; text-align: center; cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: #58a6ff; background: rgba(88,166,255,0.06);
+}
+.drop-zone p { font-size: 13px; color: #8b949e; }
+.drop-zone p strong { color: #58a6ff; }
+.drop-zone input { display: none; }
+.image-info { font-size: 11px; color: #8b949e; margin-top: 8px; }
+.image-info span { color: #58a6ff; font-weight: 600; }
+
+/* ── Slider rows ───────────────────────────────────────── */
+.slider-row {
+  display: grid; grid-template-columns: 72px 1fr 42px;
+  align-items: center; gap: 8px; margin-bottom: 6px;
+}
+.slider-row label {
+  font-size: 12px; font-weight: 600; font-family: 'Consolas', 'SF Mono', monospace;
+}
+.slider-row .val {
+  font-size: 11px; color: #8b949e; text-align: right;
+  font-family: 'Consolas', 'SF Mono', monospace;
+}
+
+/* ── Range inputs ──────────────────────────────────────── */
+input[type="range"] {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 6px; border-radius: 3px;
+  background: #21262d; outline: none; cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #c9d1d9; border: 2px solid #0d1117;
+  box-shadow: 0 0 0 1px #30363d;
+  transition: background 0.15s;
+}
+input[type="range"]::-webkit-slider-thumb:hover { background: #f0f6fc; }
+input[type="range"]::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #c9d1d9; border: 2px solid #0d1117;
+  box-shadow: 0 0 0 1px #30363d;
+}
+
+/* Colored thumbs per group — one per source dimension */
+.group-x input[type="range"]::-webkit-slider-thumb { background: #58a6ff; }
+.group-x input[type="range"]::-moz-range-thumb { background: #58a6ff; }
+.group-y input[type="range"]::-webkit-slider-thumb { background: #79c0ff; }
+.group-y input[type="range"]::-moz-range-thumb { background: #79c0ff; }
+.group-r input[type="range"]::-webkit-slider-thumb { background: #ff7b72; }
+.group-r input[type="range"]::-moz-range-thumb { background: #ff7b72; }
+.group-g input[type="range"]::-webkit-slider-thumb { background: #7ee787; }
+.group-g input[type="range"]::-moz-range-thumb { background: #7ee787; }
+.group-b input[type="range"]::-webkit-slider-thumb { background: #7dc8f7; }
+.group-b input[type="range"]::-moz-range-thumb { background: #7dc8f7; }
+
+.group-settings input[type="range"]::-webkit-slider-thumb { background: #8b949e; }
+.group-settings input[type="range"]::-moz-range-thumb { background: #8b949e; }
+
+/* ── Dim label colors ──────────────────────────────────── */
+.dim-x { color: #58a6ff; }
+.dim-y { color: #79c0ff; }
+.dim-r { color: #ff7b72; }
+.dim-g { color: #7ee787; }
+.dim-b { color: #7dc8f7; }
+.sep   { color: #484f58; }
+
+/* ── Buttons ───────────────────────────────────────────── */
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn {
+  flex: 1; min-width: 80px; padding: 7px 12px;
+  border: 1px solid #30363d; border-radius: 6px;
+  background: #21262d; color: #c9d1d9;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  text-align: center;
+}
+.btn:hover { background: #30363d; border-color: #484f58; }
+.btn.active { background: #1f6feb; border-color: #388bfd; color: #fff; }
+
+/* ── Clip mode toggle ─────────────────────────────────── */
+.clip-row {
+  display: flex; align-items: center; gap: 8px; margin-top: 6px;
+}
+.clip-row label { font-size: 12px; font-weight: 600; white-space: nowrap; min-width: 72px; }
+.clip-options { display: flex; gap: 0; flex: 1; }
+.clip-btn {
+  flex: 1; padding: 4px 0; border: 1px solid #30363d;
+  background: #0d1117; color: #8b949e;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.clip-btn:first-child { border-radius: 4px 0 0 4px; }
+.clip-btn:last-child  { border-radius: 0 4px 4px 0; }
+.clip-btn:not(:first-child) { border-left: none; }
+.clip-btn:hover { background: #161b22; color: #c9d1d9; }
+.clip-btn.active { background: #21262d; color: #f0f6fc; border-color: #484f58; }
+.clip-btn.active[data-mode="0"] { color: #ff00ff; }
+.clip-btn.active[data-mode="1"] { color: #f0f6fc; }
+
+/* ── Footer info ───────────────────────────────────────── */
+.info-bar {
+  font-size: 11px; color: #484f58; display: flex;
+  justify-content: space-between; padding-top: 8px;
+  border-top: 1px solid #21262d;
+}
+.info-bar span { font-family: 'Consolas', 'SF Mono', monospace; }
+.clip-pct { color: #ff00ff !important; transition: color 0.3s; }
+.clip-pct.zero { color: #484f58 !important; }
+
+/* ── Main canvas area ──────────────────────────────────── */
+.main {
+  flex: 1; display: flex; align-items: center;
+  justify-content: center; position: relative;
+  background: #010409;
+}
+canvas {
+  display: block; image-rendering: pixelated;
+}
+.canvas-hint {
+  position: absolute; bottom: 16px; right: 20px;
+  font-size: 11px; color: #30363d;
+  font-family: 'Consolas', 'SF Mono', monospace;
+}
+</style>
+</head>
+
+<body>
+
+<aside class="sidebar">
+  <h1>5D Pixel Rotator
+    <span>every pixel is a 5D voxel: (x, y, R, G, B)</span>
+  </h1>
+
+  <!-- Image loader -->
+  <div class="section">
+    <div class="drop-zone" id="dropZone">
+      <p><strong>Drop image here</strong> or click to browse</p>
+      <p style="margin-top:4px; font-size:11px;">JPEG, PNG, GIF</p>
+      <input type="file" id="fileInput" accept="image/*">
+    </div>
+    <div class="image-info" id="imageInfo"></div>
+  </div>
+
+  <!-- Settings -->
+  <div class="section group-settings">
+    <div class="section-title"><span class="dot" style="background:#8b949e"></span> Settings</div>
+    <div class="slider-row">
+      <label>Dot scale</label>
+      <input type="range" id="dotScale" min="0.3" max="3" value="1" step="0.05">
+      <span class="val" id="dotScaleVal">1.0</span>
+    </div>
+    <div class="slider-row">
+      <label>Zoom</label>
+      <input type="range" id="zoom" min="0.2" max="4" value="1" step="0.05">
+      <span class="val" id="zoomVal">1.0</span>
+    </div>
+    <div class="clip-row">
+      <label>OOB color</label>
+      <div class="clip-options">
+        <button class="clip-btn active" data-mode="0">Magenta</button>
+        <button class="clip-btn" data-mode="1">Black</button>
+        <button class="clip-btn" data-mode="2">Clamp</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 × 4 = 20 directed rotation axes -->
+  <div class="section group-x" id="groupX">
+    <div class="section-title"><span class="dot" style="background:#58a6ff"></span> X axis</div>
+  </div>
+  <div class="section group-y" id="groupY">
+    <div class="section-title"><span class="dot" style="background:#79c0ff"></span> Y axis</div>
+  </div>
+  <div class="section group-r" id="groupR">
+    <div class="section-title"><span class="dot" style="background:#ff7b72"></span> Red</div>
+  </div>
+  <div class="section group-g" id="groupG">
+    <div class="section-title"><span class="dot" style="background:#7ee787"></span> Green</div>
+  </div>
+  <div class="section group-b" id="groupB">
+    <div class="section-title"><span class="dot" style="background:#7dc8f7"></span> Blue</div>
+  </div>
+
+  <!-- Action buttons -->
+  <div class="btn-row">
+    <button class="btn" id="btnReset">Reset All</button>
+    <button class="btn" id="btnAnimate">Animate</button>
+    <button class="btn" id="btnRandomize">Randomize</button>
+  </div>
+  <div class="btn-row">
+    <button class="btn" id="btnExport">Export PNG</button>
+  </div>
+
+  <!-- Info bar -->
+  <div class="info-bar">
+    <span id="infoPixels">0 px</span>
+    <span id="infoClip" class="clip-pct zero">0% clip</span>
+    <span id="infoFps">-- fps</span>
+  </div>
+</aside>
+
+<div class="main" id="mainArea">
+  <canvas id="canvas"></canvas>
+  <div class="canvas-hint" id="canvasHint">load an image or use the demo</div>
+</div>
+
+<script>
+// ============================================================
+// Constants
+// ============================================================
+const DIM_NAMES  = ['X', 'Y', 'R', 'G', 'B'];
+const DIM_CLASSES = ['dim-x', 'dim-y', 'dim-r', 'dim-g', 'dim-b'];
+
+// 20 directed rotation axes: each of 5 dims can rotate toward each of 4 others
+const ROTATIONS = [];       // [src, dst] pairs
+const ROTATION_LABELS = []; // HTML label strings
+const ROTATION_GROUPS = []; // 0–4 = source dimension index (X, Y, R, G, B)
+for (let src = 0; src < 5; src++) {
+  for (let dst = 0; dst < 5; dst++) {
+    if (src === dst) continue;
+    ROTATIONS.push([src, dst]);
+    ROTATION_LABELS.push(
+      `<span class="${DIM_CLASSES[src]}">${DIM_NAMES[src]}</span>` +
+      `<span class="sep"> &rarr; </span>` +
+      `<span class="${DIM_CLASSES[dst]}">${DIM_NAMES[dst]}</span>`
+    );
+    ROTATION_GROUPS.push(src);
+  }
+}
+
+// ============================================================
+// State
+// ============================================================
+let points    = null;   // Float32Array[numPoints * 5]  — normalized
+let alphas    = null;   // Uint8Array[numPoints]
+let numPoints = 0;
+let imgW = 0, imgH = 0;
+
+const angles     = new Float64Array(20);
+const animSpeeds = new Float64Array(20);
+let animating  = false;
+let zoomLevel  = 1.0;
+let dotScale   = 1.0;
+let clipMode   = 0;    // 0 = magenta, 1 = black, 2 = clamp
+let needsRender = true;
+
+// source image data (to re-extract on settings change)
+let sourceImage = null;  // { img: HTMLImageElement | null, data: ImageData | null, w, h }
+
+// FPS tracking
+let frameCount = 0, lastFpsTime = performance.now();
+
+// slider DOM references
+const sliderEls = [];
+const sliderValEls = [];
+
+// ============================================================
+// DOM refs
+// ============================================================
+const canvas    = document.getElementById('canvas');
+const ctx       = canvas.getContext('2d');
+const mainArea  = document.getElementById('mainArea');
+const dropZone  = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+// ============================================================
+// Matrix math (flat 5x5 in row-major Float64Array)
+// ============================================================
+function identity5() {
+  const m = new Float64Array(25);
+  m[0] = m[6] = m[12] = m[18] = m[24] = 1;
+  return m;
+}
+
+function matMul5(a, b) {
+  const o = new Float64Array(25);
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      let s = 0;
+      const ri = r * 5;
+      for (let k = 0; k < 5; k++) s += a[ri + k] * b[k * 5 + c];
+      o[ri + c] = s;
+    }
+  }
+  return o;
+}
+
+function buildRotationMatrix(ang) {
+  let m = identity5();
+  for (let k = 0; k < 20; k++) {
+    if (Math.abs(ang[k]) < 1e-12) continue;
+    const [src, dst] = ROTATIONS[k];
+    const c = Math.cos(ang[k]);
+    const s = Math.sin(ang[k]);
+    // src axis rotates toward dst axis
+    const rot = identity5();
+    rot[src * 5 + src] = c;  rot[src * 5 + dst] = -s;
+    rot[dst * 5 + src] = s;  rot[dst * 5 + dst] = c;
+    m = matMul5(rot, m);
+  }
+  return m;
+}
+
+// ============================================================
+// HSL → RGB (for demo image)
+// ============================================================
+function hsl2rgb(h, s, l) {
+  let r, g, b;
+  if (s === 0) { r = g = b = l; }
+  else {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1; if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+
+// ============================================================
+// Generate sample demo image (color wheel + gradient)
+// ============================================================
+function generateDemoImage() {
+  const size = 120;
+  const off = document.createElement('canvas');
+  off.width = off.height = size;
+  const c = off.getContext('2d');
+  const id = c.createImageData(size, size);
+  const d = id.data;
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = x - size / 2 + 0.5, dy = y - size / 2 + 0.5;
+      const dist = Math.sqrt(dx * dx + dy * dy) / (size / 2);
+      const angle = Math.atan2(dy, dx);
+      const idx = (y * size + x) * 4;
+
+      if (dist <= 1.0) {
+        const h = (angle + Math.PI) / (2 * Math.PI);
+        const s = 0.6 + 0.4 * dist;
+        const l = 0.25 + 0.45 * (1 - dist * 0.6);
+        const [r, g, b] = hsl2rgb(h, s, l);
+        d[idx] = r; d[idx + 1] = g; d[idx + 2] = b; d[idx + 3] = 255;
+      } else {
+        d[idx + 3] = 0; // transparent outside circle
+      }
+    }
+  }
+  c.putImageData(id, 0, 0);
+  return { data: c.getImageData(0, 0, size, size), w: size, h: size, img: null };
+}
+
+// ============================================================
+// Extract 5D points from image data
+// ============================================================
+function extractPoints(imgData, w, h) {
+  const d = imgData.data;
+  imgW = w; imgH = h;
+
+  // Count non-transparent pixels
+  let count = 0;
+  for (let i = 3; i < d.length; i += 4) if (d[i] > 10) count++;
+
+  numPoints = count;
+  points = new Float32Array(count * 5);
+  alphas = new Uint8Array(count);
+
+  const sInv = 1 / Math.max(w, h);
+  const halfW = w / 2, halfH = h / 2;
+  const cInv = 1 / 256;
+
+  let pi = 0;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const si = (y * w + x) * 4;
+      if (d[si + 3] <= 10) continue; // skip transparent
+      const bi = pi * 5;
+      points[bi]     = (x - halfW) * sInv;
+      points[bi + 1] = (y - halfH) * sInv;
+      points[bi + 2] = (d[si]     - 128) * cInv;
+      points[bi + 3] = (d[si + 1] - 128) * cInv;
+      points[bi + 4] = (d[si + 2] - 128) * cInv;
+      alphas[pi] = d[si + 3];
+      pi++;
+    }
+  }
+
+  document.getElementById('infoPixels').textContent = numPoints.toLocaleString() + ' px';
+  document.getElementById('canvasHint').textContent = `${w} x ${h}`;
+  needsRender = true;
+}
+
+// ============================================================
+// Load an image file
+// ============================================================
+function loadImageFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      sourceImage = { img, data: null, w: img.width, h: img.height };
+      processSourceImage();
+      document.getElementById('imageInfo').innerHTML =
+        `Loaded: <span>${file.name}</span> (${img.width}&times;${img.height})`;
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function processSourceImage() {
+  if (!sourceImage) return;
+
+  if (sourceImage.img) {
+    const w = sourceImage.img.width, h = sourceImage.img.height;
+    const off = document.createElement('canvas');
+    off.width = w; off.height = h;
+    const c = off.getContext('2d');
+    c.drawImage(sourceImage.img, 0, 0, w, h);
+    extractPoints(c.getImageData(0, 0, w, h), w, h);
+  } else {
+    extractPoints(sourceImage.data, sourceImage.w, sourceImage.h);
+  }
+}
+
+// ============================================================
+// Rendering
+// ============================================================
+function render() {
+  const cw = canvas.width, ch = canvas.height;
+  if (cw === 0 || ch === 0) return;
+
+  // Fast clear via fillRect (cheaper than ImageData fill for large canvases)
+  ctx.fillStyle = '#010409';
+  ctx.fillRect(0, 0, cw, ch);
+
+  if (!points || numPoints === 0) return;
+
+  const m = buildRotationMatrix(angles);
+  const displayScale = Math.min(cw, ch) * 0.72 * zoomLevel;
+  const cx = cw / 2, cy = ch / 2;
+
+  // Create ImageData for point splatting
+  const imgData = ctx.getImageData(0, 0, cw, ch);
+  const buf = imgData.data;
+  // Compute splat size from the natural pixel pitch so that at identity
+  // rotation (and dotScale 1.0) adjacent source pixels tile seamlessly.
+  const pitch = displayScale / Math.max(imgW, imgH);
+  const ps = Math.max(1, Math.ceil(pitch * dotScale));
+  const cm = clipMode;
+  let clipped = 0;
+
+  // Transform and splat each point
+  for (let p = 0; p < numPoints; p++) {
+    const bi = p * 5;
+    const ox = points[bi], oy = points[bi+1], or = points[bi+2], og = points[bi+3], ob = points[bi+4];
+
+    // Matrix-vector multiply (unrolled for speed)
+    const nx = m[0]*ox + m[1]*oy + m[2]*or + m[3]*og + m[4]*ob;
+    const ny = m[5]*ox + m[6]*oy + m[7]*or + m[8]*og + m[9]*ob;
+    const nr = m[10]*ox + m[11]*oy + m[12]*or + m[13]*og + m[14]*ob;
+    const ng = m[15]*ox + m[16]*oy + m[17]*or + m[18]*og + m[19]*ob;
+    const nb = m[20]*ox + m[21]*oy + m[22]*or + m[23]*og + m[24]*ob;
+
+    // Screen position — NO spatial clipping, let points roam the full canvas
+    const sx = (nx * displayScale + cx) | 0;
+    const sy = (ny * displayScale + cy) | 0;
+
+    // Output color (denormalize)
+    let cr = (nr * 256 + 128) | 0;
+    let cg = (ng * 256 + 128) | 0;
+    let cb = (nb * 256 + 128) | 0;
+
+    // Out-of-gamut detection
+    const oob = cr < 0 || cr > 255 || cg < 0 || cg > 255 || cb < 0 || cb > 255;
+    if (oob) {
+      clipped++;
+      if (cm === 0)      { cr = 255; cg = 0; cb = 255; }   // magenta
+      else if (cm === 1) { cr = 0;   cg = 0; cb = 0; }     // black
+      else { // clamp (legacy)
+        if (cr < 0) cr = 0; else if (cr > 255) cr = 255;
+        if (cg < 0) cg = 0; else if (cg > 255) cg = 255;
+        if (cb < 0) cb = 0; else if (cb > 255) cb = 255;
+      }
+    }
+
+    // Splat pixel (ps x ps block) — only clip to canvas edges
+    for (let dy = 0; dy < ps; dy++) {
+      const fy = sy + dy;
+      if (fy < 0 || fy >= ch) continue;
+      const rowOff = fy * cw;
+      for (let dx = 0; dx < ps; dx++) {
+        const fx = sx + dx;
+        if (fx < 0 || fx >= cw) continue;
+        const idx = (rowOff + fx) << 2;
+        buf[idx]     = cr;
+        buf[idx + 1] = cg;
+        buf[idx + 2] = cb;
+        buf[idx + 3] = 255;
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+
+  // ── Draw original image bounds (faint dashed rectangle) ──
+  const maxDim = Math.max(imgW, imgH);
+  const halfBW = (imgW / (2 * maxDim)) * displayScale;
+  const halfBH = (imgH / (2 * maxDim)) * displayScale;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 5]);
+  ctx.strokeRect(cx - halfBW, cy - halfBH, halfBW * 2, halfBH * 2);
+  ctx.restore();
+
+  // ── Update clip stats ──
+  const clipEl = document.getElementById('infoClip');
+  if (numPoints > 0) {
+    const pct = (clipped / numPoints * 100);
+    clipEl.textContent = pct.toFixed(1) + '% clip';
+    clipEl.classList.toggle('zero', clipped === 0);
+  }
+}
+
+// ============================================================
+// Canvas sizing
+// ============================================================
+function resizeCanvas() {
+  const rect = mainArea.getBoundingClientRect();
+  const dpr = 1; // keep 1:1 for pixel art feel
+  canvas.width  = Math.floor(rect.width * dpr);
+  canvas.height = Math.floor(rect.height * dpr);
+  canvas.style.width  = rect.width + 'px';
+  canvas.style.height = rect.height + 'px';
+  needsRender = true;
+}
+
+// ============================================================
+// UI: build slider rows
+// ============================================================
+function buildSliders() {
+  const containers = [
+    document.getElementById('groupX'),
+    document.getElementById('groupY'),
+    document.getElementById('groupR'),
+    document.getElementById('groupG'),
+    document.getElementById('groupB'),
+  ];
+
+  for (let p = 0; p < 20; p++) {
+    const group = ROTATION_GROUPS[p];
+    const row = document.createElement('div');
+    row.className = 'slider-row';
+
+    const lbl = document.createElement('label');
+    lbl.innerHTML = ROTATION_LABELS[p];
+
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = -180; slider.max = 180; slider.value = 0; slider.step = 1;
+    slider.dataset.axis = p;
+
+    const val = document.createElement('span');
+    val.className = 'val';
+    val.textContent = '0\u00B0';
+
+    row.appendChild(lbl);
+    row.appendChild(slider);
+    row.appendChild(val);
+    containers[group].appendChild(row);
+
+    sliderEls.push(slider);
+    sliderValEls.push(val);
+
+    slider.addEventListener('input', () => {
+      const deg = parseFloat(slider.value);
+      angles[p] = deg * Math.PI / 180;
+      val.textContent = deg + '\u00B0';
+      needsRender = true;
+    });
+
+    // double-click to reset individual slider
+    slider.addEventListener('dblclick', () => {
+      slider.value = 0;
+      angles[p] = 0;
+      val.textContent = '0\u00B0';
+      needsRender = true;
+    });
+  }
+}
+
+function updateSlidersFromAngles() {
+  for (let p = 0; p < 20; p++) {
+    const deg = Math.round(angles[p] * 180 / Math.PI);
+    sliderEls[p].value = deg;
+    sliderValEls[p].textContent = deg + '\u00B0';
+  }
+}
+
+// ============================================================
+// UI: settings sliders
+// ============================================================
+function setupSettings() {
+  const dotScaleSlider = document.getElementById('dotScale');
+  const zoomSlider     = document.getElementById('zoom');
+
+  dotScaleSlider.addEventListener('input', () => {
+    dotScale = parseFloat(dotScaleSlider.value);
+    document.getElementById('dotScaleVal').textContent = dotScale.toFixed(2);
+    needsRender = true;
+  });
+
+  zoomSlider.addEventListener('input', () => {
+    zoomLevel = parseFloat(zoomSlider.value);
+    document.getElementById('zoomVal').textContent = zoomLevel.toFixed(2);
+    needsRender = true;
+  });
+
+  // Clip mode toggle
+  const clipBtns = document.querySelectorAll('.clip-btn');
+  clipBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      clipBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      clipMode = parseInt(btn.dataset.mode);
+      needsRender = true;
+    });
+  });
+}
+
+// ============================================================
+// UI: buttons
+// ============================================================
+function setupButtons() {
+  // Reset all rotation angles
+  document.getElementById('btnReset').addEventListener('click', () => {
+    angles.fill(0);
+    updateSlidersFromAngles();
+    needsRender = true;
+  });
+
+  // Toggle animation
+  const btnAnim = document.getElementById('btnAnimate');
+  btnAnim.addEventListener('click', () => {
+    animating = !animating;
+    btnAnim.classList.toggle('active', animating);
+    btnAnim.textContent = animating ? 'Stop' : 'Animate';
+    if (animating) randomizeSpeeds();
+  });
+
+  // Randomize rotation angles
+  document.getElementById('btnRandomize').addEventListener('click', () => {
+    for (let i = 0; i < 20; i++) {
+      angles[i] = (Math.random() - 0.5) * 2 * Math.PI;
+    }
+    updateSlidersFromAngles();
+    needsRender = true;
+  });
+
+  // Export PNG
+  document.getElementById('btnExport').addEventListener('click', () => {
+    render(); // ensure fresh render
+    const link = document.createElement('a');
+    link.download = '5d-rotation.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
+}
+
+function randomizeSpeeds() {
+  for (let i = 0; i < 20; i++) {
+    animSpeeds[i] = (Math.random() - 0.5) * 0.03;
+  }
+}
+
+// ============================================================
+// UI: drag & drop
+// ============================================================
+function setupDragDrop() {
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) loadImageFile(fileInput.files[0]);
+  });
+
+  ['dragenter', 'dragover'].forEach(ev => {
+    dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  });
+  ['dragleave', 'drop'].forEach(ev => {
+    dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('dragover'); });
+  });
+  dropZone.addEventListener('drop', e => {
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) loadImageFile(file);
+  });
+
+  // also allow drop on main canvas area
+  mainArea.addEventListener('dragover', e => e.preventDefault());
+  mainArea.addEventListener('drop', e => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) loadImageFile(file);
+  });
+}
+
+// ============================================================
+// Animation loop
+// ============================================================
+function tick(now) {
+  requestAnimationFrame(tick);
+
+  // FPS counter
+  frameCount++;
+  if (now - lastFpsTime >= 1000) {
+    document.getElementById('infoFps').textContent = frameCount + ' fps';
+    frameCount = 0;
+    lastFpsTime = now;
+  }
+
+  // Animation update
+  if (animating) {
+    for (let i = 0; i < 20; i++) {
+      angles[i] += animSpeeds[i];
+      // wrap to [-PI, PI]
+      if (angles[i] > Math.PI)  angles[i] -= 2 * Math.PI;
+      if (angles[i] < -Math.PI) angles[i] += 2 * Math.PI;
+    }
+    updateSlidersFromAngles();
+    needsRender = true;
+  }
+
+  if (needsRender) {
+    needsRender = false;
+    render();
+  }
+}
+
+// ============================================================
+// Keyboard shortcuts
+// ============================================================
+function setupKeyboard() {
+  document.addEventListener('keydown', e => {
+    if (e.key === ' ') {
+      e.preventDefault();
+      document.getElementById('btnAnimate').click();
+    }
+    if (e.key === 'r' || e.key === 'R') {
+      document.getElementById('btnReset').click();
+    }
+    if (e.key === 'e' || e.key === 'E') {
+      document.getElementById('btnExport').click();
+    }
+  });
+}
+
+// ============================================================
+// Mouse wheel zoom on canvas
+// ============================================================
+function setupWheelZoom() {
+  mainArea.addEventListener('wheel', e => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.05 : 0.05;
+    zoomLevel = Math.max(0.2, Math.min(4, zoomLevel + delta));
+    document.getElementById('zoom').value = zoomLevel;
+    document.getElementById('zoomVal').textContent = zoomLevel.toFixed(2);
+    needsRender = true;
+  }, { passive: false });
+}
+
+// ============================================================
+// Initialization
+// ============================================================
+function init() {
+  buildSliders();
+  setupSettings();
+  setupButtons();
+  setupDragDrop();
+  setupKeyboard();
+  setupWheelZoom();
+  resizeCanvas();
+
+  window.addEventListener('resize', resizeCanvas);
+  new ResizeObserver(resizeCanvas).observe(mainArea);
+
+  // Load demo image
+  sourceImage = generateDemoImage();
+  processSourceImage();
+  document.getElementById('imageInfo').innerHTML = 'Demo: <span>color wheel</span> (120&times;120)';
+
+  // Start render loop
+  requestAnimationFrame(tick);
+}
+
+init();
+</script>
+</body>
+</html>
