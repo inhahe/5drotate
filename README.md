@@ -5,7 +5,8 @@ Load an image and rotate it in five dimensions. Every pixel becomes a point in
 Twenty sliders let you rotate any axis toward any other axis, blending position
 and color in ways that don't exist in normal image editing.
 
-Open `5d-voxel-rotator.html` in a browser. No build step, no dependencies.
+**[Live demo](http://inhahe.com/5d-voxel-rotator.html)** — or open
+`5d-voxel-rotator.html` locally in a browser. No build step, no dependencies.
 
 ## How it works
 
