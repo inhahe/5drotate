@@ -28,26 +28,23 @@ This means a single rotation can:
   blue while the right side turns red.
 - **Do both at once** when you stack multiple sliders.
 
-## The 20 axes
+## The 10 rotation planes
 
-In 5D there are 5 x 4 = 20 directed rotation axes, organized by source
-dimension:
+In 5D there are 5×4/2 = 10 unique rotation planes — every way to pick two axes
+out of five:
 
-| Group   | Sliders              |
-|---------|----------------------|
-| **X**   | X→Y  X→R  X→G  X→B  |
-| **Y**   | Y→X  Y→R  Y→G  Y→B  |
-| **Red** | R→X  R→Y  R→G  R→B  |
-| **Green** | G→X  G→Y  G→R  G→B |
-| **Blue**  | B→X  B→Y  B→R  B→G |
+    X↔Y   X↔R   X↔G   X↔B
+          Y↔R   Y↔G   Y↔B
+                R↔G   R↔B
+                      G↔B
 
-"X→R" means "rotate the X axis toward the Red axis." At +90 degrees, what was
-purely spatial-X becomes purely Red. Pixels that were far right become bright
-red; pixels that were far left become dark (or go out of gamut).
+Each slider goes from -180° to +180°. Positive values rotate the first axis
+toward the second; negative values rotate the other way. Double-click a slider
+to zero it.
 
-X→Y and Y→X share the same geometric plane but push in opposite directions.
-Cranking both the same way partially cancels; cranking them opposite ways
-compounds.
+"X↔R" at +90° means what was purely spatial-X becomes purely Red. Pixels that
+were far right become bright red; pixels that were far left become dark (or go
+out of gamut).
 
 ## Out-of-gamut clipping
 
@@ -74,7 +71,7 @@ bounds so you can see which pixels have drifted outside.
 | Dot scale     | Multiplier on the auto-computed splat size. 1.0 = seamless tiling. < 1 = gaps (pointillist). > 1 = overlap (blobby). |
 | Zoom          | Scale the point cloud on the canvas. Also controllable via mouse wheel. |
 | OOB color     | Magenta / Black / Clamp toggle for out-of-gamut pixels. |
-| 20 sliders    | -180 to +180 degrees each. Double-click a slider to zero it. |
+| 10 sliders    | -180 to +180 degrees each. Double-click a slider to zero it. |
 | Reset All     | Zero every slider. |
 | Animate       | Randomize rotation speeds and spin continuously. |
 | Randomize     | Jump to random angles on all 20 axes. |
@@ -111,10 +108,10 @@ sidebar shows the actual rate.
 preserve aspect ratio. Color coordinates are divided by 256. All dimensions end
 up in roughly the [-0.5, 0.5] range so rotations mix them equally.
 
-**Matrix composition.** The 20 rotation matrices are multiplied left-to-right in
-a fixed order (X→Y, X→R, ... B→G). Since rotations in different planes don't
+**Matrix composition.** The 10 rotation matrices are multiplied left-to-right in
+a fixed order (X↔Y, X↔R, ... G↔B). Since rotations in different planes don't
 commute, the order matters — the same slider values always produce the same
-result, but reordering the sliders in code would change the output.
+result, but reordering the planes in code would change the output.
 
 **Rendering.** An ImageData buffer is written directly — no Canvas 2D draw calls
 per pixel. The splat size is `ceil(displayScale / max(imgW, imgH) * dotScale)`

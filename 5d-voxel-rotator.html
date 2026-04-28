@@ -89,17 +89,9 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: 0 0 0 1px #30363d;
 }
 
-/* Colored thumbs per group — one per source dimension */
-.group-x input[type="range"]::-webkit-slider-thumb { background: #58a6ff; }
-.group-x input[type="range"]::-moz-range-thumb { background: #58a6ff; }
-.group-y input[type="range"]::-webkit-slider-thumb { background: #79c0ff; }
-.group-y input[type="range"]::-moz-range-thumb { background: #79c0ff; }
-.group-r input[type="range"]::-webkit-slider-thumb { background: #ff7b72; }
-.group-r input[type="range"]::-moz-range-thumb { background: #ff7b72; }
-.group-g input[type="range"]::-webkit-slider-thumb { background: #7ee787; }
-.group-g input[type="range"]::-moz-range-thumb { background: #7ee787; }
-.group-b input[type="range"]::-webkit-slider-thumb { background: #7dc8f7; }
-.group-b input[type="range"]::-moz-range-thumb { background: #7dc8f7; }
+/* Colored thumbs for rotation sliders */
+.group-rotations input[type="range"]::-webkit-slider-thumb { background: #d2a8ff; }
+.group-rotations input[type="range"]::-moz-range-thumb { background: #d2a8ff; }
 
 .group-settings input[type="range"]::-webkit-slider-thumb { background: #8b949e; }
 .group-settings input[type="range"]::-moz-range-thumb { background: #8b949e; }
@@ -212,21 +204,9 @@ canvas {
     </div>
   </div>
 
-  <!-- 5 × 4 = 20 directed rotation axes -->
-  <div class="section group-x" id="groupX">
-    <div class="section-title"><span class="dot" style="background:#58a6ff"></span> X axis</div>
-  </div>
-  <div class="section group-y" id="groupY">
-    <div class="section-title"><span class="dot" style="background:#79c0ff"></span> Y axis</div>
-  </div>
-  <div class="section group-r" id="groupR">
-    <div class="section-title"><span class="dot" style="background:#ff7b72"></span> Red</div>
-  </div>
-  <div class="section group-g" id="groupG">
-    <div class="section-title"><span class="dot" style="background:#7ee787"></span> Green</div>
-  </div>
-  <div class="section group-b" id="groupB">
-    <div class="section-title"><span class="dot" style="background:#7dc8f7"></span> Blue</div>
+  <!-- 5×4/2 = 10 rotation planes -->
+  <div class="section group-rotations" id="groupRotations">
+    <div class="section-title"><span class="dot" style="background:#d2a8ff"></span> Rotations</div>
   </div>
 
   <!-- Action buttons -->
@@ -259,20 +239,17 @@ canvas {
 const DIM_NAMES  = ['X', 'Y', 'R', 'G', 'B'];
 const DIM_CLASSES = ['dim-x', 'dim-y', 'dim-r', 'dim-g', 'dim-b'];
 
-// 20 directed rotation axes: each of 5 dims can rotate toward each of 4 others
-const ROTATIONS = [];       // [src, dst] pairs
-const ROTATION_LABELS = []; // HTML label strings
-const ROTATION_GROUPS = []; // 0–4 = source dimension index (X, Y, R, G, B)
-for (let src = 0; src < 5; src++) {
-  for (let dst = 0; dst < 5; dst++) {
-    if (src === dst) continue;
-    ROTATIONS.push([src, dst]);
-    ROTATION_LABELS.push(
-      `<span class="${DIM_CLASSES[src]}">${DIM_NAMES[src]}</span>` +
-      `<span class="sep"> &rarr; </span>` +
-      `<span class="${DIM_CLASSES[dst]}">${DIM_NAMES[dst]}</span>`
+// 5×4/2 = 10 unique rotation planes
+const PLANES = [];       // [i, j] pairs
+const PLANE_LABELS = []; // HTML label strings
+for (let i = 0; i < 5; i++) {
+  for (let j = i + 1; j < 5; j++) {
+    PLANES.push([i, j]);
+    PLANE_LABELS.push(
+      `<span class="${DIM_CLASSES[i]}">${DIM_NAMES[i]}</span>` +
+      `<span class="sep"> &harr; </span>` +
+      `<span class="${DIM_CLASSES[j]}">${DIM_NAMES[j]}</span>`
     );
-    ROTATION_GROUPS.push(src);
   }
 }
 
@@ -284,8 +261,8 @@ let alphas    = null;   // Uint8Array[numPoints]
 let numPoints = 0;
 let imgW = 0, imgH = 0;
 
-const angles     = new Float64Array(20);
-const animSpeeds = new Float64Array(20);
+const angles     = new Float64Array(10);
+const animSpeeds = new Float64Array(10);
 let animating  = false;
 let zoomLevel  = 1.0;
 let dotScale   = 1.0;
@@ -335,15 +312,14 @@ function matMul5(a, b) {
 
 function buildRotationMatrix(ang) {
   let m = identity5();
-  for (let k = 0; k < 20; k++) {
+  for (let k = 0; k < 10; k++) {
     if (Math.abs(ang[k]) < 1e-12) continue;
-    const [src, dst] = ROTATIONS[k];
+    const [i, j] = PLANES[k];
     const c = Math.cos(ang[k]);
     const s = Math.sin(ang[k]);
-    // src axis rotates toward dst axis
     const rot = identity5();
-    rot[src * 5 + src] = c;  rot[src * 5 + dst] = -s;
-    rot[dst * 5 + src] = s;  rot[dst * 5 + dst] = c;
+    rot[i * 5 + i] = c;  rot[i * 5 + j] = -s;
+    rot[j * 5 + i] = s;  rot[j * 5 + j] = c;
     m = matMul5(rot, m);
   }
   return m;
@@ -595,26 +571,18 @@ function resizeCanvas() {
 // UI: build slider rows
 // ============================================================
 function buildSliders() {
-  const containers = [
-    document.getElementById('groupX'),
-    document.getElementById('groupY'),
-    document.getElementById('groupR'),
-    document.getElementById('groupG'),
-    document.getElementById('groupB'),
-  ];
+  const container = document.getElementById('groupRotations');
 
-  for (let p = 0; p < 20; p++) {
-    const group = ROTATION_GROUPS[p];
+  for (let p = 0; p < 10; p++) {
     const row = document.createElement('div');
     row.className = 'slider-row';
 
     const lbl = document.createElement('label');
-    lbl.innerHTML = ROTATION_LABELS[p];
+    lbl.innerHTML = PLANE_LABELS[p];
 
     const slider = document.createElement('input');
     slider.type = 'range';
     slider.min = -180; slider.max = 180; slider.value = 0; slider.step = 1;
-    slider.dataset.axis = p;
 
     const val = document.createElement('span');
     val.className = 'val';
@@ -623,7 +591,7 @@ function buildSliders() {
     row.appendChild(lbl);
     row.appendChild(slider);
     row.appendChild(val);
-    containers[group].appendChild(row);
+    container.appendChild(row);
 
     sliderEls.push(slider);
     sliderValEls.push(val);
@@ -646,7 +614,7 @@ function buildSliders() {
 }
 
 function updateSlidersFromAngles() {
-  for (let p = 0; p < 20; p++) {
+  for (let p = 0; p < 10; p++) {
     const deg = Math.round(angles[p] * 180 / Math.PI);
     sliderEls[p].value = deg;
     sliderValEls[p].textContent = deg + '\u00B0';
@@ -706,7 +674,7 @@ function setupButtons() {
 
   // Randomize rotation angles
   document.getElementById('btnRandomize').addEventListener('click', () => {
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 10; i++) {
       angles[i] = (Math.random() - 0.5) * 2 * Math.PI;
     }
     updateSlidersFromAngles();
@@ -724,7 +692,7 @@ function setupButtons() {
 }
 
 function randomizeSpeeds() {
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 10; i++) {
     animSpeeds[i] = (Math.random() - 0.5) * 0.03;
   }
 }
@@ -774,7 +742,7 @@ function tick(now) {
 
   // Animation update
   if (animating) {
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 10; i++) {
       angles[i] += animSpeeds[i];
       // wrap to [-PI, PI]
       if (angles[i] > Math.PI)  angles[i] -= 2 * Math.PI;
