@@ -102,6 +102,9 @@ input[type="range"]::-moz-range-thumb {
 .dim-r { color: #ff7b72; }
 .dim-g { color: #7ee787; }
 .dim-b { color: #7dc8f7; }
+.dim-h { color: #f0883e; }
+.dim-s { color: #a5d6ff; }
+.dim-v { color: #f9e2af; }
 .sep   { color: #484f58; }
 
 /* ── Buttons ───────────────────────────────────────────── */
@@ -117,25 +120,25 @@ input[type="range"]::-moz-range-thumb {
 .btn:hover { background: #30363d; border-color: #484f58; }
 .btn.active { background: #1f6feb; border-color: #388bfd; color: #fff; }
 
-/* ── Clip mode toggle ─────────────────────────────────── */
-.clip-row {
+/* ── Toggle button rows (clip mode, color space) ─────── */
+.toggle-row {
   display: flex; align-items: center; gap: 8px; margin-top: 6px;
 }
-.clip-row label { font-size: 12px; font-weight: 600; white-space: nowrap; min-width: 72px; }
-.clip-options { display: flex; gap: 0; flex: 1; }
-.clip-btn {
+.toggle-row label { font-size: 12px; font-weight: 600; white-space: nowrap; min-width: 72px; }
+.toggle-options { display: flex; gap: 0; flex: 1; }
+.toggle-btn {
   flex: 1; padding: 4px 0; border: 1px solid #30363d;
   background: #0d1117; color: #8b949e;
   font-size: 11px; font-weight: 600; cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
-.clip-btn:first-child { border-radius: 4px 0 0 4px; }
-.clip-btn:last-child  { border-radius: 0 4px 4px 0; }
-.clip-btn:not(:first-child) { border-left: none; }
-.clip-btn:hover { background: #161b22; color: #c9d1d9; }
-.clip-btn.active { background: #21262d; color: #f0f6fc; border-color: #484f58; }
-.clip-btn.active[data-mode="0"] { color: #ff00ff; }
-.clip-btn.active[data-mode="1"] { color: #f0f6fc; }
+.toggle-btn:first-child { border-radius: 4px 0 0 4px; }
+.toggle-btn:last-child  { border-radius: 0 4px 4px 0; }
+.toggle-btn:not(:first-child) { border-left: none; }
+.toggle-btn:hover { background: #161b22; color: #c9d1d9; }
+.toggle-btn.active { background: #21262d; color: #f0f6fc; border-color: #484f58; }
+.toggle-btn.active[data-mode="0"] { color: #ff00ff; }
+.toggle-btn.active[data-mode="1"] { color: #f0f6fc; }
 
 /* ── Footer info ───────────────────────────────────────── */
 .info-bar {
@@ -168,7 +171,7 @@ canvas {
 
 <aside class="sidebar">
   <h1>5D Pixel Rotator
-    <span>every pixel is a 5D voxel: (x, y, R, G, B)</span>
+    <span id="subtitle">every pixel is a 5D voxel: (x, y, R, G, B)</span>
   </h1>
 
   <!-- Image loader -->
@@ -194,12 +197,24 @@ canvas {
       <input type="range" id="zoom" min="0.2" max="4" value="1" step="0.05">
       <span class="val" id="zoomVal">1.0</span>
     </div>
-    <div class="clip-row">
+    <div class="slider-row">
+      <label>Color wt</label>
+      <input type="range" id="colorWeight" min="0.1" max="5" value="1" step="0.05">
+      <span class="val" id="colorWeightVal">1.00</span>
+    </div>
+    <div class="toggle-row">
+      <label>Color space</label>
+      <div class="toggle-options" id="colorSpaceOptions">
+        <button class="toggle-btn active" data-cs="rgb">RGB</button>
+        <button class="toggle-btn" data-cs="hsv">HSV</button>
+      </div>
+    </div>
+    <div class="toggle-row">
       <label>OOB color</label>
-      <div class="clip-options">
-        <button class="clip-btn active" data-mode="0">Magenta</button>
-        <button class="clip-btn" data-mode="1">Black</button>
-        <button class="clip-btn" data-mode="2">Clamp</button>
+      <div class="toggle-options" id="clipOptions">
+        <button class="toggle-btn active" data-mode="0">Magenta</button>
+        <button class="toggle-btn" data-mode="1">Black</button>
+        <button class="toggle-btn" data-mode="2">Clamp</button>
       </div>
     </div>
   </div>
@@ -236,15 +251,28 @@ canvas {
 // ============================================================
 // Constants
 // ============================================================
-const DIM_NAMES  = ['X', 'Y', 'R', 'G', 'B'];
-const DIM_CLASSES = ['dim-x', 'dim-y', 'dim-r', 'dim-g', 'dim-b'];
+const DIM_NAMES_RGB  = ['X', 'Y', 'R', 'G', 'B'];
+const DIM_CLASSES_RGB = ['dim-x', 'dim-y', 'dim-r', 'dim-g', 'dim-b'];
+
+const DIM_NAMES_HSV  = ['X', 'Y', 'H', 'S', 'V'];
+const DIM_CLASSES_HSV = ['dim-x', 'dim-y', 'dim-h', 'dim-s', 'dim-v'];
+
+let DIM_NAMES = DIM_NAMES_RGB;
+let DIM_CLASSES = DIM_CLASSES_RGB;
 
 // 5×4/2 = 10 unique rotation planes
 const PLANES = [];       // [i, j] pairs
-const PLANE_LABELS = []; // HTML label strings
+let PLANE_LABELS = [];   // HTML label strings
 for (let i = 0; i < 5; i++) {
   for (let j = i + 1; j < 5; j++) {
     PLANES.push([i, j]);
+  }
+}
+
+function buildPlaneLabels() {
+  PLANE_LABELS = [];
+  for (let k = 0; k < PLANES.length; k++) {
+    const [i, j] = PLANES[k];
     PLANE_LABELS.push(
       `<span class="${DIM_CLASSES[i]}">${DIM_NAMES[i]}</span>` +
       `<span class="sep"> &harr; </span>` +
@@ -252,6 +280,7 @@ for (let i = 0; i < 5; i++) {
     );
   }
 }
+buildPlaneLabels();
 
 // ============================================================
 // State
@@ -263,11 +292,13 @@ let imgW = 0, imgH = 0;
 
 const angles     = new Float64Array(10);
 const animSpeeds = new Float64Array(10);
-let animating  = false;
-let zoomLevel  = 1.0;
-let dotScale   = 1.0;
-let clipMode   = 0;    // 0 = magenta, 1 = black, 2 = clamp
-let needsRender = true;
+let animating    = false;
+let zoomLevel    = 1.0;
+let dotScale     = 1.0;
+let colorWeight  = 1.0; // scale color dims relative to spatial dims
+let clipMode     = 0;   // 0 = magenta, 1 = black, 2 = clamp
+let colorSpace   = 'rgb'; // 'rgb' or 'hsv'
+let needsRender  = true;
 
 // source image data (to re-extract on settings change)
 let sourceImage = null;  // { img: HTMLImageElement | null, data: ImageData | null, w, h }
@@ -349,6 +380,44 @@ function hsl2rgb(h, s, l) {
 }
 
 // ============================================================
+// RGB ↔ HSV conversions
+// ============================================================
+// rgb2hsv: r,g,b in [0,255] → [h in 0-360, s in 0-1, v in 0-1]
+function rgb2hsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const d = max - min;
+  let h = 0, s = max === 0 ? 0 : d / max, v = max;
+  if (d !== 0) {
+    if (max === r)      h = ((g - b) / d + 6) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else                h = (r - g) / d + 4;
+    h *= 60;
+  }
+  return [h, s, v];
+}
+
+// hsv2rgb: h in [0,360], s in [0,1], v in [0,1] → [r,g,b] in [0,255]
+function hsv2rgb(h, s, v) {
+  h = ((h % 360) + 360) % 360; // wrap hue
+  const c = v * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = v - c;
+  let r, g, b;
+  if      (h < 60)  { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else              { r = c; g = 0; b = x; }
+  return [
+    Math.round((r + m) * 255),
+    Math.round((g + m) * 255),
+    Math.round((b + m) * 255)
+  ];
+}
+
+// ============================================================
 // Generate sample demo image (color wheel + gradient)
 // ============================================================
 function generateDemoImage() {
@@ -398,7 +467,7 @@ function extractPoints(imgData, w, h) {
 
   const sInv = 1 / Math.max(w, h);
   const halfW = w / 2, halfH = h / 2;
-  const cInv = 1 / 256;
+  const useHSV = colorSpace === 'hsv';
 
   let pi = 0;
   for (let y = 0; y < h; y++) {
@@ -408,9 +477,21 @@ function extractPoints(imgData, w, h) {
       const bi = pi * 5;
       points[bi]     = (x - halfW) * sInv;
       points[bi + 1] = (y - halfH) * sInv;
-      points[bi + 2] = (d[si]     - 128) * cInv;
-      points[bi + 3] = (d[si + 1] - 128) * cInv;
-      points[bi + 4] = (d[si + 2] - 128) * cInv;
+
+      if (useHSV) {
+        const [hue, sat, val] = rgb2hsv(d[si], d[si + 1], d[si + 2]);
+        // H: 0-360 → centered at 180, normalized to ~[-0.5, 0.5]
+        points[bi + 2] = (hue - 180) / 360;
+        // S: 0-1 → centered at 0.5, normalized to [-0.5, 0.5]
+        points[bi + 3] = sat - 0.5;
+        // V: 0-1 → centered at 0.5, normalized to [-0.5, 0.5]
+        points[bi + 4] = val - 0.5;
+      } else {
+        const cInv = 1 / 256;
+        points[bi + 2] = (d[si]     - 128) * cInv;
+        points[bi + 3] = (d[si + 1] - 128) * cInv;
+        points[bi + 4] = (d[si + 2] - 128) * cInv;
+      }
       alphas[pi] = d[si + 3];
       pi++;
     }
@@ -481,10 +562,15 @@ function render() {
   const cm = clipMode;
   let clipped = 0;
 
+  const cwt = colorWeight;   // pre-rotation scale on color dims
+  const cwInv = 1 / cwt;    // post-rotation unscale
+
   // Transform and splat each point
   for (let p = 0; p < numPoints; p++) {
     const bi = p * 5;
-    const ox = points[bi], oy = points[bi+1], or = points[bi+2], og = points[bi+3], ob = points[bi+4];
+    const ox = points[bi], oy = points[bi+1];
+    // Apply color weight before rotation so color dims carry the desired ratio
+    const or = points[bi+2] * cwt, og = points[bi+3] * cwt, ob = points[bi+4] * cwt;
 
     // Matrix-vector multiply (unrolled for speed)
     const nx = m[0]*ox + m[1]*oy + m[2]*or + m[3]*og + m[4]*ob;
@@ -497,21 +583,49 @@ function render() {
     const sx = (nx * displayScale + cx) | 0;
     const sy = (ny * displayScale + cy) | 0;
 
-    // Output color (denormalize)
-    let cr = (nr * 256 + 128) | 0;
-    let cg = (ng * 256 + 128) | 0;
-    let cb = (nb * 256 + 128) | 0;
+    // Output color (undo weight, then denormalize based on color space)
+    let cr, cg, cb;
+    let oob;
 
-    // Out-of-gamut detection
-    const oob = cr < 0 || cr > 255 || cg < 0 || cg > 255 || cb < 0 || cb > 255;
-    if (oob) {
-      clipped++;
-      if (cm === 0)      { cr = 255; cg = 0; cb = 255; }   // magenta
-      else if (cm === 1) { cr = 0;   cg = 0; cb = 0; }     // black
-      else { // clamp (legacy)
-        if (cr < 0) cr = 0; else if (cr > 255) cr = 255;
-        if (cg < 0) cg = 0; else if (cg > 255) cg = 255;
-        if (cb < 0) cb = 0; else if (cb > 255) cb = 255;
+    if (colorSpace === 'hsv') {
+      // Undo weight, then denormalize HSV
+      const hue = nr * cwInv * 360 + 180;  // back to 0-360 range (wraps)
+      const sat = ng * cwInv + 0.5;        // back to 0-1 range
+      const val = nb * cwInv + 0.5;        // back to 0-1 range
+
+      // Out-of-gamut: S or V outside [0,1]
+      oob = sat < 0 || sat > 1 || val < 0 || val > 1;
+      if (oob) {
+        clipped++;
+        if (cm === 0)      { cr = 255; cg = 0; cb = 255; }
+        else if (cm === 1) { cr = 0;   cg = 0; cb = 0; }
+        else {
+          // Clamp S and V, wrap H, then convert
+          const clH = ((hue % 360) + 360) % 360;
+          const clS = Math.max(0, Math.min(1, sat));
+          const clV = Math.max(0, Math.min(1, val));
+          [cr, cg, cb] = hsv2rgb(clH, clS, clV);
+        }
+      } else {
+        [cr, cg, cb] = hsv2rgb(hue, sat, val);
+      }
+    } else {
+      // Undo weight, then denormalize RGB
+      cr = (nr * cwInv * 256 + 128) | 0;
+      cg = (ng * cwInv * 256 + 128) | 0;
+      cb = (nb * cwInv * 256 + 128) | 0;
+
+      // Out-of-gamut detection
+      oob = cr < 0 || cr > 255 || cg < 0 || cg > 255 || cb < 0 || cb > 255;
+      if (oob) {
+        clipped++;
+        if (cm === 0)      { cr = 255; cg = 0; cb = 255; }   // magenta
+        else if (cm === 1) { cr = 0;   cg = 0; cb = 0; }     // black
+        else { // clamp
+          if (cr < 0) cr = 0; else if (cr > 255) cr = 255;
+          if (cg < 0) cg = 0; else if (cg > 255) cg = 255;
+          if (cb < 0) cb = 0; else if (cb > 255) cb = 255;
+        }
       }
     }
 
@@ -640,8 +754,16 @@ function setupSettings() {
     needsRender = true;
   });
 
+  // Color weight (ratio of color depth to spatial extent)
+  const colorWeightSlider = document.getElementById('colorWeight');
+  colorWeightSlider.addEventListener('input', () => {
+    colorWeight = parseFloat(colorWeightSlider.value);
+    document.getElementById('colorWeightVal').textContent = colorWeight.toFixed(2);
+    needsRender = true;
+  });
+
   // Clip mode toggle
-  const clipBtns = document.querySelectorAll('.clip-btn');
+  const clipBtns = document.querySelectorAll('#clipOptions .toggle-btn');
   clipBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       clipBtns.forEach(b => b.classList.remove('active'));
@@ -650,6 +772,52 @@ function setupSettings() {
       needsRender = true;
     });
   });
+
+  // Color space toggle
+  const csBtns = document.querySelectorAll('#colorSpaceOptions .toggle-btn');
+  csBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.cs === colorSpace) return; // no change
+      csBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      colorSpace = btn.dataset.cs;
+      applyColorSpace();
+    });
+  });
+}
+
+// ============================================================
+// Color space switching
+// ============================================================
+function applyColorSpace() {
+  // Update dimension names and classes
+  if (colorSpace === 'hsv') {
+    DIM_NAMES = DIM_NAMES_HSV;
+    DIM_CLASSES = DIM_CLASSES_HSV;
+  } else {
+    DIM_NAMES = DIM_NAMES_RGB;
+    DIM_CLASSES = DIM_CLASSES_RGB;
+  }
+
+  // Rebuild plane labels and update slider labels
+  buildPlaneLabels();
+  const container = document.getElementById('groupRotations');
+  const rows = container.querySelectorAll('.slider-row');
+  rows.forEach((row, idx) => {
+    const lbl = row.querySelector('label');
+    if (lbl) lbl.innerHTML = PLANE_LABELS[idx];
+  });
+
+  // Update subtitle
+  const sub = document.getElementById('subtitle');
+  if (colorSpace === 'hsv') {
+    sub.textContent = 'every pixel is a 5D voxel: (x, y, H, S, V)';
+  } else {
+    sub.textContent = 'every pixel is a 5D voxel: (x, y, R, G, B)';
+  }
+
+  // Re-extract points from source image in the new color space
+  processSourceImage();
 }
 
 // ============================================================
@@ -772,6 +940,16 @@ function setupKeyboard() {
     }
     if (e.key === 'e' || e.key === 'E') {
       document.getElementById('btnExport').click();
+    }
+    if (e.key === 'c' || e.key === 'C') {
+      // Toggle color space
+      const next = colorSpace === 'rgb' ? 'hsv' : 'rgb';
+      const csBtns = document.querySelectorAll('#colorSpaceOptions .toggle-btn');
+      csBtns.forEach(b => {
+        b.classList.toggle('active', b.dataset.cs === next);
+      });
+      colorSpace = next;
+      applyColorSpace();
     }
   });
 }

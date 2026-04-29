@@ -1,9 +1,11 @@
 # 5D Pixel Rotator
 
 Load an image and rotate it in five dimensions. Every pixel becomes a point in
-5D space — two spatial coordinates (X, Y) and three color coordinates (R, G, B).
-Twenty sliders let you rotate any axis toward any other axis, blending position
-and color in ways that don't exist in normal image editing.
+5D space — two spatial coordinates (X, Y) and three color coordinates. Choose
+between **RGB** (Red, Green, Blue) and **HSV** (Hue, Saturation, Value) color
+spaces — the sliders and rendering adapt accordingly. Ten sliders let you rotate
+any axis toward any other axis, blending position and color in ways that don't
+exist in normal image editing.
 
 **[Live demo](http://inhahe.com/5d-voxel-rotator.html)** — or open
 `5d-voxel-rotator.html` locally in a browser. No build step, no dependencies.
@@ -12,13 +14,14 @@ and color in ways that don't exist in normal image editing.
 
 A pixel at column 80, row 40 with color rgb(200, 100, 50) becomes the 5D point:
 
-    (80, 40, 200, 100, 50)
+    RGB mode: (80, 40, 200, 100, 50)
+    HSV mode: (80, 40, 14°, 0.75, 0.78)
 
 All five coordinates are centered and normalized so they carry roughly equal
 weight during rotation. A 5x5 rotation matrix is built from however many of the
-20 sliders are non-zero, then applied to every pixel each frame. The output X
-and Y become the pixel's new screen position; the output R, G, B become its new
-color.
+10 sliders are non-zero, then applied to every pixel each frame. The output X
+and Y become the pixel's new screen position; the output color channels become
+its new color (converted back to RGB for display).
 
 This means a single rotation can:
 
@@ -28,15 +31,21 @@ This means a single rotation can:
   blue while the right side turns red.
 - **Do both at once** when you stack multiple sliders.
 
+In **HSV mode**, the same idea applies but the color axes are perceptually
+meaningful: rotating X↔H moves pixels left/right based on their hue, while X↔V
+separates bright from dark spatially. HSV rotations tend to produce smoother
+color transitions since hue is inherently circular.
+
 ## The 10 rotation planes
 
 In 5D there are 5×4/2 = 10 unique rotation planes — every way to pick two axes
 out of five:
 
-    X↔Y   X↔R   X↔G   X↔B
-          Y↔R   Y↔G   Y↔B
-                R↔G   R↔B
-                      G↔B
+    RGB mode:             HSV mode:
+    X↔Y  X↔R  X↔G  X↔B  X↔Y  X↔H  X↔S  X↔V
+         Y↔R  Y↔G  Y↔B       Y↔H  Y↔S  Y↔V
+              R↔G  R↔B            H↔S  H↔V
+                   G↔B                 S↔V
 
 Each slider goes from -180° to +180°. Positive values rotate the first axis
 toward the second; negative values rotate the other way. Double-click a slider
@@ -44,12 +53,15 @@ to zero it.
 
 "X↔R" at +90° means what was purely spatial-X becomes purely Red. Pixels that
 were far right become bright red; pixels that were far left become dark (or go
-out of gamut).
+out of gamut). In HSV mode, "X↔H" at +90° rotates spatial position into hue —
+pixels on the right become red/orange, pixels on the left become blue/violet.
 
 ## Out-of-gamut clipping
 
-When a rotation pushes a pixel's R, G, or B outside 0–255, it has left the
-visible color cube. The **OOB color** toggle controls what happens:
+When a rotation pushes a pixel's color outside the valid range, it has left the
+visible gamut. In RGB mode this means any channel outside 0–255; in HSV mode it
+means S or V outside [0, 1] (hue wraps freely since it's circular). The
+**OOB color** toggle controls what happens:
 
 - **Magenta** (default) — the pixel renders as #FF00FF, making clipped regions
   obvious.
@@ -70,11 +82,13 @@ bounds so you can see which pixels have drifted outside.
 | Drop zone     | Load a JPEG, PNG, or GIF. Images are processed at full native resolution. |
 | Dot scale     | Multiplier on the auto-computed splat size. 1.0 = seamless tiling. < 1 = gaps (pointillist). > 1 = overlap (blobby). |
 | Zoom          | Scale the point cloud on the canvas. Also controllable via mouse wheel. |
+| Color wt      | Ratio of color depth to spatial extent. At 1.0 color and position carry equal weight. Higher values make color axes "longer" — rotations mix color more aggressively. Lower values keep pixels spatially anchored. |
+| Color space   | RGB / HSV toggle. Changes which color axes are used for the 5D embedding. Slider labels update to match. |
 | OOB color     | Magenta / Black / Clamp toggle for out-of-gamut pixels. |
 | 10 sliders    | -180 to +180 degrees each. Double-click a slider to zero it. |
 | Reset All     | Zero every slider. |
 | Animate       | Randomize rotation speeds and spin continuously. |
-| Randomize     | Jump to random angles on all 20 axes. |
+| Randomize     | Jump to random angles on all 10 axes. |
 | Export PNG    | Save the current canvas as a PNG. |
 
 ### Keyboard
@@ -84,6 +98,7 @@ bounds so you can see which pixels have drifted outside.
 | Space   | Toggle animation |
 | R       | Reset all rotations |
 | E       | Export PNG |
+| C       | Toggle color space (RGB ↔ HSV) |
 
 ### Mouse
 
@@ -105,8 +120,12 @@ sidebar shows the actual rate.
 ## Technical notes
 
 **Normalization.** Spatial coordinates are divided by `max(width, height)` to
-preserve aspect ratio. Color coordinates are divided by 256. All dimensions end
-up in roughly the [-0.5, 0.5] range so rotations mix them equally.
+preserve aspect ratio. In RGB mode, color channels are divided by 256. In HSV
+mode, hue is divided by 360 and centered at 180°; S and V are centered at 0.5.
+All dimensions end up in roughly the [-0.5, 0.5] range. The **Color weight**
+slider then scales the color dimensions relative to spatial — at 1.0 they carry
+equal weight; at 2.0 color is twice as "wide" as position, so rotations that
+mix color and space move pixels further.
 
 **Matrix composition.** The 10 rotation matrices are multiplied left-to-right in
 a fixed order (X↔Y, X↔R, ... G↔B). Since rotations in different planes don't
